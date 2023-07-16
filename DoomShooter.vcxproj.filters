@@ -27,16 +27,22 @@
     <ClCompile Include="Base\Vector2d.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
+    <ClCompile Include="Base\Screen.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Base\Input.h">
-      <Filter>Исходные файлы</Filter>
+    <ClInclude Include="Base\Vector2d.h">
+      <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="Base\Time.h">
-      <Filter>Исходные файлы</Filter>
+      <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="Base\Vector2d.h">
-      <Filter>Исходные файлы</Filter>
+    <ClInclude Include="Base\Input.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="Base\Screen.h">
+      <Filter>Файлы заголовков</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

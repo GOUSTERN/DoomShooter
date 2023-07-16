@@ -143,12 +143,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Base\Input.cpp" />
+    <ClCompile Include="Base\Screen.cpp" />
     <ClCompile Include="Base\Time.cpp" />
     <ClCompile Include="Base\Vector2d.cpp" />
     <ClCompile Include="DoomShooter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Base\Input.h" />
+    <ClInclude Include="Base\Screen.h" />
     <ClInclude Include="Base\Time.h" />
     <ClInclude Include="Base\Vector2d.h" />
   </ItemGroup>
