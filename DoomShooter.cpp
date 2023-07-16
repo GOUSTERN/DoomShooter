@@ -1,5 +1,7 @@
 ﻿#include <iostream>
 #include "SDL.h"
+#include "Base/Time.h"
+#include "Base/Input.h"
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define PIXEL_SCALE 2
@@ -74,6 +76,13 @@ public:
         SDL_SetRenderDrawColor(ren, col.r, col.g, col.b, col.alpha);
         SDL_RenderDrawLine(ren, x0, y0, x1, y1);
     }
+    void ApplicationQuit()
+    {
+        SDL_DestroyTexture(screen_tex);
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+    }
 };
 
 Screen* scr = new Screen();
@@ -89,22 +98,13 @@ int main(int argc, char** argv)
 {
     srand(time(NULL));
     InitSDL();
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, 0);
     scr->CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, PIXEL_SCALE);
 
-    Uint32 a;
-    a = SDL_GetTicks();
+    Time::Set_target_framerate(120);
 
-    SDL_SetRenderTarget(scr->ren, scr->screen_tex);
-
-    SDL_SetRenderDrawColor(scr->ren, 0, 0, 0, 255);
-    SDL_RenderClear(scr->ren);
-    
-    while (true)
+    while (!Input::Qiut())
     {
-        std::cout << SDL_GetTicks() - a << '\n';
-        a = SDL_GetTicks();
-
+        Input::Handle_events();
         SDL_SetRenderTarget(scr->ren, scr->screen_tex);
 
         for (int i = 0; i < scr->GetScreenWidth(); i++)
@@ -114,13 +114,10 @@ int main(int argc, char** argv)
 
         SDL_RenderCopy(scr->ren, scr->screen_tex, NULL, NULL);
         SDL_RenderPresent(scr->ren);
+
+        Time::Tick();
     }
-    
-
-    SDL_Delay(20000);
-
-    SDL_DestroyWindow(scr->window);
-    SDL_Quit();
-
+    scr->ApplicationQuit();
+    delete(scr);
     return 0;
 }

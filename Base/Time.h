@@ -91,11 +91,6 @@ public:
 	/// returns target framerate
 	/// </summary>
 	static double Get_target_framerate() { return target_fps; }
-
-	static int f()
-	{
-		return Time::timers_to_update.size();
-	}
 private:
 	static double dt;
 	static int target_fps;
