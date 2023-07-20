@@ -51,6 +51,17 @@ void Screen::DrawLine(int x0, int y0, int x1, int y1, Color col)
     SDL_RenderDrawLine(ren, x0, y0, x1, y1);
 }
 
+void Screen::DrawRect(int x0, int y0, int x1, int y1, Color col)
+{
+    SDL_SetRenderDrawColor(ren, col.r, col.g, col.b, col.alpha);
+    SDL_Rect rect;
+    rect.x = x0;
+    rect.y = y0;
+    rect.w = x1 - x0;
+    rect.h = y1 - y0;
+    SDL_RenderFillRect(ren, &rect);
+}
+
 void Screen::ApplicationQuit()
 {
     SDL_DestroyTexture(screen_tex);

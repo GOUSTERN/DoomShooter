@@ -28,6 +28,7 @@ public:
     void CreateWindow(int windoww, int windowh, int pixelscale, SDL_WindowFlags flag = SDL_WINDOW_SHOWN);
     void DrawPixel(int x, int y, Color col);
     void DrawLine(int x0, int y0, int x1, int y1, Color col);
+    void DrawRect(int x0, int y0, int x1, int y1, Color col);
     void ApplicationQuit();
 
     static Screen* scr;

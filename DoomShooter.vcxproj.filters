@@ -24,7 +24,7 @@
     <ClCompile Include="Base\Time.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="Base\Vector2d.cpp">
+    <ClCompile Include="Base\Vectorf.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="Base\Screen.cpp">
@@ -32,7 +32,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Base\Vector2d.h">
+    <ClInclude Include="Base\Vectorf.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="Base\Time.h">
