@@ -7,43 +7,43 @@
 #include "Base/Screen.h"
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
-#define PIXEL_SCALE 4
+#define PIXEL_SCALE 1
 
 struct Math
 {
 private:
-    static double Dsin[360];
-    static double Dcos[360];
+    static double Dsin[3600];
+    static double Dcos[3600];
 public:
     static const double pi;
     static void InitSinAndCos()
     {
-        for (int i = 0; i < 360; i++)
+        for (int i = 0; i < 3600; i++)
         {
             Dsin[i] = sin(i / 180.0 * pi);
             Dcos[i] = cos(i / 180.0 * pi);
         }
-    }
-    static inline Vector3d RotateAroundPoint3d(const Vector3d& point, const Vector3d& aroundwhat, float a)
-    {
-        float CS = Math::GetCos(a);
-        float SN = Math::GetSin(a);
-        Vector3d vec = point - aroundwhat;
-        return Vector3d(vec.x * CS - vec.z * SN, point.y, vec.z * CS + vec.x * SN);
     }
     static inline Vector2d RotateAroundPoint2d(const Vector2d& point, const Vector2d& aroundwhat, float a)
     {
         float CS = Math::GetCos(a);
         float SN = Math::GetSin(a);
         Vector2d vec = point - aroundwhat;
-        return Vector2d(vec.x * CS - vec.y * SN, vec.y * CS + vec.x * SN);
+        return Vector2d(vec.x * CS - vec.y * SN + aroundwhat.x, vec.x * SN + vec.y * CS + aroundwhat.y);
     }
-    static double GetSin(int angle) { return Dsin[angle % 360]; }
-    static double GetCos(int angle) { return Dcos[angle % 360]; }
+    static inline Vector3d RotateAroundPoint3d(const Vector3d& point, const Vector3d& aroundwhat, float a, float l = 0.0f)
+    {
+        Vector2d vec = RotateAroundPoint2d(Vector2d(point.x, point.z), Vector2d(aroundwhat.x, aroundwhat.z), a);
+        float x = vec.x;
+        vec = RotateAroundPoint2d(Vector2d(vec.y, point.y), Vector2d(aroundwhat.z, aroundwhat.y), l);
+        return Vector3d(x, vec.y, vec.x);
+    }
+    static double GetSin(float angle) { return Dsin[(int)(angle * 10) % 3600]; }
+    static double GetCos(float angle) { return Dcos[(int)(angle * 10) % 3600]; }
 };
 const double Math::pi = 3.14159265359;
-double Math::Dsin[360];
-double Math::Dcos[360];
+double Math::Dsin[3600];
+double Math::Dcos[3600];
 
 class Camera
 {
@@ -122,29 +122,37 @@ public:
         if (l < 0)
             l += 360;
     }
-    inline Vector3d GetViewDirection() { return Math::RotateAroundPoint3d(Vector3d::FORWARD + this->position, this->position, 360 - this->a).Normalize(); }
+    inline Vector3d GetViewDirection() { return Math::RotateAroundPoint3d(Vector3d::FORWARD, Vector3d::ZERO, 360 - this->a, this->l); }
     void Move()
     {
+        float speed = this->speed;
+        if (Input::Get_key_down(SDL_SCANCODE_LSHIFT))
+            speed *= 2;
         if (Input::Get_key_down(SDL_SCANCODE_LEFT))
             RotateA(-1 * rotate_speed * Time::Delta_time());
         if (Input::Get_key_down(SDL_SCANCODE_RIGHT))
             RotateA(rotate_speed * Time::Delta_time());
         if (Input::Get_key_down(SDL_SCANCODE_UP))
-            RotateL(rotate_speed * Time::Delta_time() / 5);
+            RotateL(rotate_speed * Time::Delta_time() / 2);
         if (Input::Get_key_down(SDL_SCANCODE_DOWN))
-            RotateL(-1 * rotate_speed * Time::Delta_time() / 5);
+            RotateL(-1 * rotate_speed * Time::Delta_time() / 2);
+
+        if (Input::Get_key_down(SDL_SCANCODE_SPACE))
+            this->position.y += speed * Time::Delta_time() / 1.3;
+        if (Input::Get_key_down(SDL_SCANCODE_LCTRL))
+            this->position.y -= speed * Time::Delta_time() / 1.3;
 
         Vector3d vec;
         Vector3d look = this->GetViewDirection();
-        Vector3d par = Math::RotateAroundPoint3d(Vector3d::LEFT + this->position, this->position, 360 - this->a).Normalize();
+        std::cout << look.x << " " << look.y << " " << look.z << '\n';
+        Vector3d par = Math::RotateAroundPoint3d(Vector3d::LEFT, Vector3d::ZERO, 360 - this->a);
 
         if (Input::Get_key_down(SDL_SCANCODE_A)) { vec = vec + par; }
         if (Input::Get_key_down(SDL_SCANCODE_D)) { vec = vec + par * -1; }
         if (Input::Get_key_down(SDL_SCANCODE_S)) { vec = vec + look * -1; }
         if (Input::Get_key_down(SDL_SCANCODE_W)) { vec = vec + look; }
 
-        //this->position = this->position + vec * speed * Time::Delta_time();
-        this->position = this->position + vec * speed * Time::Delta_time();
+        this->position = this->position + vec.Normalize() * speed * Time::Delta_time();
 
         /*std::cout << "a = " << a << '\n';
         std::cout << "l = " << l << '\n';
@@ -152,7 +160,7 @@ public:
         std::cout << "y = " << position.y << '\n' << '\n';*/
     }
 };
-Player* p = new Player(Vector3d::ZERO, 0, 0, 1.0f);
+Player* p = new Player(Vector3d::ZERO, 0, 0, 2.0f, 15.0f);
 
 class Minimap
 {
@@ -213,7 +221,6 @@ public:
         for (Vector3d* i : points)
         {
             Vector3d ni = Math::RotateAroundPoint3d(*i, p->position, p->a);
-            std::cout << p->position.x << " " << p->position.z << '\n';
             scr->DrawPixel(ni.x * zoom - p->position.x * zoom + w / 2 + 0.5, -1 * (ni.z * zoom - p->position.z * zoom) + h / 2 + 0.5, Color(0, 0, 255));
         }
     }
@@ -231,12 +238,13 @@ int main(int argc, char** argv)
 {
     Screen::scr->CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, PIXEL_SCALE);
     Math::InitSinAndCos();
+    Time::Set_target_framerate(120);
 
     int x1, y1;
     int x2, y2;
     int x3, y3;
     int x4, y4;
-    Minimap* mp = new Minimap(50, 30, 4, p, Screen::scr);
+    Minimap* mp = new Minimap(100, 60, 4, p, Screen::scr);
 
     Vector3d point1 = Vector3d(0, -0.5, 1);
     Vector3d point2 = Vector3d(0, 1, 1);
@@ -264,16 +272,16 @@ int main(int argc, char** argv)
 
         mcam->pos = p->position;
 
-        mcam->W_to_S(Math::RotateAroundPoint3d(point1, p->position, p->a), x1, y1);
-        mcam->W_to_S(Math::RotateAroundPoint3d(point2, p->position, p->a), x2, y2);
-        mcam->W_to_S(Math::RotateAroundPoint3d(point3, p->position, p->a), x3, y3);
-        mcam->W_to_S(Math::RotateAroundPoint3d(point4, p->position, p->a), x4, y4);
+        mcam->W_to_S(Math::RotateAroundPoint3d(point1, p->position, p->a, 360 - p->l), x1, y1);
+        mcam->W_to_S(Math::RotateAroundPoint3d(point2, p->position, p->a, 360 - p->l), x2, y2);
+        mcam->W_to_S(Math::RotateAroundPoint3d(point3, p->position, p->a, 360 - p->l), x3, y3);
+        mcam->W_to_S(Math::RotateAroundPoint3d(point4, p->position, p->a, 360 - p->l), x4, y4);
         Screen::scr->DrawLine(x1, y1, x2, y2, Color(255, 0, 0));
         Screen::scr->DrawLine(x3, y3, x4, y4, Color(255, 0, 0));
         Screen::scr->DrawLine(x1, y1, x3, y3, Color(255, 0, 0));
         Screen::scr->DrawLine(x2, y2, x4, y4, Color(255, 0, 0));
-        mcam->W_to_S(Math::RotateAroundPoint3d(point5, p->position, p->a), x3, y3);
-        mcam->W_to_S(Math::RotateAroundPoint3d(point6, p->position, p->a), x4, y4);
+        mcam->W_to_S(Math::RotateAroundPoint3d(point5, p->position, p->a, 360 - p->l), x3, y3);
+        mcam->W_to_S(Math::RotateAroundPoint3d(point6, p->position, p->a, 360 - p->l), x4, y4);
         Screen::scr->DrawLine(x1, y1, x2, y2, Color(255, 0, 0));
         Screen::scr->DrawLine(x3, y3, x4, y4, Color(255, 0, 0));
         Screen::scr->DrawLine(x1, y1, x3, y3, Color(255, 0, 0));
@@ -298,6 +306,8 @@ int main(int argc, char** argv)
         std::cout << "y1 = " << y1 << '\n';
         std::cout << "x2 = " << x2 << '\n';
         std::cout << "y2 = " << y2 << '\n';*/
+
+        std::cout << 1.0f / Time::Delta_time() << '\n';
 
         mp->Draw2();
 
