@@ -1,5 +1,6 @@
 #pragma once
 #include "SDL.h"
+#include <iostream>
 
 class Input
 {
@@ -17,12 +18,35 @@ public:
 	/// scroll whell y value 
 	/// </summary>
 	/// <returns>-1 if it was scrolled down and 1 if was scrolled up</returns>
-	static double Get_scroll_whell();
+	static float Get_scroll_whell();
+	static void Lock_cursor(SDL_Window* win);
+	static void Unlock_cursor();
+	/// <summary>
+	/// returns delta x of mouse
+	/// </summary>
+	static float Get_mouse_x();
+	/// <summary>
+	/// returns delta x of mouse
+	/// </summary>
+	static float Get_mouse_y();
+	/// <summary>
+	/// returns delta x of mouse
+	/// </summary>
+	static int Get_delta_mouse_x();
+	/// <summary>
+	/// returns delta x of mouse
+	/// </summary>
+	static int Get_delta_mouse_y();
 	/// <summary>
 	/// returns true if there were an attempt to close the application
 	/// </summary>
 	static bool Qiut() { return Input::is_quit; }
 private:
+	static SDL_Window* windowtolock;
+	static int windowtolockw, windowtolockh;
+	static bool mouselocked;
+	static int lmousex, lmousey;
+	static int mousex, mousey;
 	static bool is_quit;
 	static int8_t scroll_whell_state;
 	static SDL_Event sdl_event;
