@@ -32,7 +32,7 @@ void Screen::CreateWindow(int windoww, int windowh, int pixelscale, SDL_WindowFl
         SDL_DestroyRenderer(ren);
     if (screen_tex != NULL)
         SDL_DestroyTexture(screen_tex);
-    window = SDL_CreateWindow("Hello, SDL 2!", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windoww, windowh, flag);
+    window = SDL_CreateWindow("3D", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, windoww, windowh, flag);
     screen_surface = SDL_GetWindowSurface(window);
     ren = SDL_CreateRenderer(window, -1, 0);
 

@@ -7,20 +7,20 @@
 #include "Base/Input.h"
 #include "Base/Screen.h"
 
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
-#define PIXEL_SCALE 2
+#define WINDOW_WIDTH 1300
+#define WINDOW_HEIGHT 800
+#define PIXEL_SCALE 1
 
 struct Math
 {
 private:
-    static double Dsin[3600];
-    static double Dcos[3600];
+    static double Dsin[36000];
+    static double Dcos[36000];
 public:
     static const double pi;
     static void InitSinAndCos()
     {
-        for (int i = 0; i < 3600; i++)
+        for (int i = 0; i < 36000; i++)
         {
             Dsin[i] = sin(i / 180.0 * pi);
             Dcos[i] = cos(i / 180.0 * pi);
@@ -46,12 +46,12 @@ public:
             return 0;
         return y2 + (y1 - y2) * (x - x2) / (x1 - x2);
     }
-    static double GetSin(float angle) { return Dsin[(int)(angle * 10) % 3600]; }
-    static double GetCos(float angle) { return Dcos[(int)(angle * 10) % 3600]; }
+    static double GetSin(float angle) { return Dsin[(int)(angle * 100) % 36000]; }
+    static double GetCos(float angle) { return Dcos[(int)(angle * 100) % 36000]; }
 };
 const double Math::pi = 3.14159265359;
-double Math::Dsin[3600];
-double Math::Dcos[3600];
+double Math::Dsin[36000];
+double Math::Dcos[36000];
 
 class Camera
 {
@@ -79,7 +79,7 @@ public:
         y = (-1 * point.y * a) + scr->GetScreenHeight() / 2;
     }
 };
-Camera* mcam = new Camera(Screen::scr);
+Camera* mcam;
 
 class Player
 {
@@ -99,7 +99,7 @@ public:
         a = 0;
         l = 0;
     }
-    Player(const Vector3d& pos, float a, float l, float speed = 2, float rotate_speed = 100)
+    Player(const Vector3d& pos, float a, float l, float speed = 2, float rotate_speed = 2)
     {
         this->speed = speed;
         this->rotate_speed = rotate_speed;
@@ -125,7 +125,7 @@ public:
         float speed = this->speed;
         if (Input::Get_key_down(SDL_SCANCODE_LSHIFT))
             speed *= 2;
-        RotateA(Input::Get_delta_mouse_x() * Time::Delta_time() * 5.0f);
+        RotateA(Input::Get_delta_mouse_x() * Time::Delta_time() * rotate_speed);
 
         if (Input::Get_key_down(SDL_SCANCODE_SPACE))
             this->position.y += speed * Time::Delta_time() / 1.3;
@@ -144,7 +144,7 @@ public:
         this->position = this->position + vec.Normalize() * speed * Time::Delta_time();
     }
 };
-Player* p = new Player(Vector3d(0, 0.5, 0), 0, 0, 2.0f, 4.0f);
+Player* p = new Player(Vector3d(0, 0.5, 0), 0, 0, 2.0f, 0.3f / PIXEL_SCALE);
 
 class Minimap
 {
@@ -153,7 +153,7 @@ public:
     float zoom;
     Player* p;
     Screen* scr;
-    std::vector<Vector3d*> points;
+    std::vector<Vector2d*> points;
     Minimap(int w, int h, float zoom, Player* p, Screen* scr)
     {
         this->zoom = zoom;
@@ -184,11 +184,13 @@ public:
 
         int x, y;
 
-        for (Vector3d* i : points)
+        Vector2d ni;
+
+        for (Vector2d* i : points)
         {
-            Vector3d ni = Math::RotateAroundPoint3d(*i, p->position, p->a);
+            ni = Math::RotateAroundPoint2d(*i, Vector2d(p->position.x, p->position.z), p->a);
             x = ni.x * zoom - p->position.x * zoom + w / 2 + 0.5;
-            y = -1 * (ni.z * zoom - p->position.z * zoom) + h / 2 + 0.5;
+            y = -1 * (ni.y * zoom - p->position.z * zoom) + h / 2 + 0.5;
             if(x >= 1 && x <= w - 2)
                 if(y >= 1 && y <= h - 2)
                     scr->DrawPixel(x, y, Color(0, 0, 255));
@@ -199,6 +201,7 @@ public:
         scr->DrawPixel(point.x * zoom + w / 2, -1 * point.z * zoom + h / 2, Color(0, 0, 255));
     }
 };
+Minimap* mp = NULL;
 
 class Wall
 {
@@ -207,9 +210,12 @@ public:
     Color col;
     float height;
     static Camera* cam;
+    int x1, y1, x2, y2;
+    int x3, y3, x4, y4;
+    bool flipped = false;
     Wall(const Vector3d& point1, const Vector3d& point2, float height, Color col)
     {
-        init(point1, point2, height, col);
+        Init(point1, point2, height, col);
     }
     Wall()
     {
@@ -219,7 +225,7 @@ public:
         this->point4 = Vector3d::ZERO;
         this->height = 0;
     }
-    void init(const Vector3d& point1, const Vector3d& point2, float height, Color col)
+    void Init(const Vector3d& point1, const Vector3d& point2, float height, Color col)
     {
         this->point1 = point1;
         this->point2 = point2;
@@ -249,17 +255,19 @@ public:
             point4.z = point2.z;
         }
     }
-    inline float GetDistanseToCamera()
+    static float GetDistanseToCamera(const Wall& wall)
     {
-        return Vector3d::Magnitude(this->point1 - p->position);
+        return Vector3d::Magnitude(wall.point1 - Wall::cam->pos);
     }
-    void Draw()
+    void Draw(Vector3d add = Vector3d::ZERO)
     {
+        x1 = 0; y1 = 0; x2 = 0; y2 = 0;
+        x3 = 0; y3 = 0; x4 = 0; y4 = 0;
         Vector3d point1, point2, point3, point4;
-        point1 = Math::RotateAroundPoint3d(this->point1, cam->pos, cam->a);
-        point2 = Math::RotateAroundPoint3d(this->point2, cam->pos, cam->a);
-        point3 = Math::RotateAroundPoint3d(this->point3, cam->pos, cam->a);
-        point4 = Math::RotateAroundPoint3d(this->point4, cam->pos, cam->a);
+        point1 = Math::RotateAroundPoint3d(this->point1 + add, cam->pos, cam->a);
+        point2 = Math::RotateAroundPoint3d(this->point2 + add, cam->pos, cam->a);
+        point3 = Math::RotateAroundPoint3d(this->point3 + add, cam->pos, cam->a);
+        point4 = Math::RotateAroundPoint3d(this->point4 + add, cam->pos, cam->a);
         point1 = point1 - cam->pos;
         point2 = point2 - cam->pos;
         point3 = point3 - cam->pos;
@@ -271,21 +279,29 @@ public:
         if (point2.z <= 0 || point1.z <= 0)
             ClipWall(point1, point2, point3, point4);
 
-        float dst = Vector3d::Magnitude(point1) * 20;
+        float dst = Vector3d::Magnitude(point1) * 7;
         char r, g, b;
         r = this->col.r - dst < 0 ? 0 : this->col.r - dst;
         g = this->col.g - dst < 0 ? 0 : this->col.g - dst;
         b = this->col.b - dst < 0 ? 0 : this->col.b - dst;
 
         Color col = Color(r, g, b);
-
-        int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
-        int x3 = 0, y3 = 0, x4 = 0, y4 = 0;
+        
         cam->WorldPointToScreen(point1, x1, y1, true, true);
         cam->WorldPointToScreen(point2, x2, y2, true, true);
         cam->WorldPointToScreen(point3, x3, y3, true, true);
         cam->WorldPointToScreen(point4, x4, y4, true, true);
 
+        if (x3 > x4)
+        {
+            std::swap(x3, x4);
+            std::swap(y3, y4);
+            std::swap(x1, x2);
+            std::swap(y1, y2);
+            flipped = true;
+        }
+        else
+            flipped = false;
         int dyH = y4 - y3;
         int dxH = x4 - x3;
         if (dxH == 0)
@@ -299,48 +315,195 @@ public:
         float aH = dyH / (float)dxH;
         float aB = dyB / (float)dxB;
         int yH = 0, yB = 0;
-        
-        if (x1 < 0) { y1 = y1 + aB * (0 - x1); x1 = 0; }
-        if (x2 < 0) { y2 = y2 + aB * (0 - x2); x2 = 0; }
-        if (x3 < 0) { y3 = y3 + aH * (0 - x3); x3 = 0; }
-        if (x4 < 0) { y4 = y4 + aH * (0 - x4); x4 = 0; }
 
-        if (x1 > cam->scr->GetScreenWidth()) x1 = cam->scr->GetScreenWidth();
-        if (x2 > cam->scr->GetScreenWidth()) x2 = cam->scr->GetScreenWidth();
-        if (x3 > cam->scr->GetScreenWidth()) x3 = cam->scr->GetScreenWidth();
-        if (x4 > cam->scr->GetScreenWidth()) x4 = cam->scr->GetScreenWidth();
+        if (x1 < 0) { y1 = y1 + aB * (0 - x1) + 0.5; x1 = 0; }
+        if (x2 < 0) { y2 = y2 + aB * (0 - x2) + 0.5; x2 = 0; }
+        if (x3 < 0) { y3 = y3 + aH * (0 - x3) + 0.5; x3 = 0; }
+        if (x4 < 0) { y4 = y4 + aH * (0 - x4) + 0.5; x4 = 0; }
 
-        for (int x = x3; x < x4; x++)
-        {
-            yH = aH * (x - x1) + y3;
-            yB = aB * (x - x1) + y1;
+        if (x1 > cam->scr->GetScreenWidth()) { y1 = y1 + aB * (cam->scr->GetScreenWidth() - x1) + 0.5; x1 = cam->scr->GetScreenWidth(); }
+        if (x2 > cam->scr->GetScreenWidth()) { y2 = y2 + aB * (cam->scr->GetScreenWidth() - x2) + 0.5; x2 = cam->scr->GetScreenWidth(); }
+        if (x3 > cam->scr->GetScreenWidth()) { y3 = y3 + aH * (cam->scr->GetScreenWidth() - x3) + 0.5; x3 = cam->scr->GetScreenWidth(); }
+        if (x4 > cam->scr->GetScreenWidth()) { y4 = y4 + aH * (cam->scr->GetScreenWidth() - x4) + 0.5; x4 = cam->scr->GetScreenWidth(); }
 
-            if (yH < 0) yH = 0;
-            if (yB < 0) yB = 0;
-            if (yH > cam->scr->GetScreenHeight()) yH = cam->scr->GetScreenHeight();
-            if (yB > cam->scr->GetScreenHeight()) yB = cam->scr->GetScreenHeight();
+        if (!flipped)
+            for (int x = x3; x < x4; x++)
+            {
+                yH = aH * (x - x1) + y3;
+                yB = aB * (x - x1) + y1;
 
-            cam->scr->DrawLine(x, yH, x, yB, col);
-        }
+                if (yH < 0) yH = 0;
+                if (yB < 0) yB = 0;
+                if (yH > cam->scr->GetScreenHeight()) yH = cam->scr->GetScreenHeight();
+                if (yB > cam->scr->GetScreenHeight()) yB = cam->scr->GetScreenHeight();
+
+                cam->scr->DrawLine(x, yH, x, yB, col);
+            }
     }
 };
-Camera* Wall::cam = mcam;
+Camera* Wall::cam = NULL;
 
-bool comp(Wall wall1, Wall wall2)
+void SortWalls(Wall* wall, int size);
+bool wallsortcomp(const Wall& wall1, const Wall& wall2);
+
+class Sector
 {
-    return wall1.GetDistanseToCamera() > wall2.GetDistanseToCamera();
+public:
+    Wall* walls;
+    int wallsnum;
+    float height, bottom;
+    Color bottomcol;
+    Color surfcol;
+    Sector()
+    {
+        walls = NULL;
+        wallsnum = -1;
+        height = 0;
+        bottom = 0;
+        bottomcol = Color();
+        surfcol = Color();
+    }
+    void Init(Vector2d* points, int pointsnum, float wallheight, float wallbottom, Color col, Color surfcol, Color bottomcol)
+    {
+        if (walls != NULL)
+            Clean();
+        walls = new Wall[pointsnum]();
+
+        this->surfcol = surfcol;
+        this->bottomcol = bottomcol;
+        this->height = wallheight;
+        this->bottom = wallbottom;
+        this->wallsnum = pointsnum;
+        for (int i = 0; i < pointsnum; i++)
+        {
+            if (i + 1 >= pointsnum)
+                walls[i].Init(Vector3d(points[pointsnum - 1].x, bottom, points[pointsnum - 1].y), Vector3d(points[0].x, bottom, points[0].y), height, col);
+            else
+                walls[i].Init(Vector3d(points[i].x, bottom, points[i].y), Vector3d(points[i + 1].x, bottom, points[i + 1].y), height, col);
+        }
+    }
+    void Draw()
+    {
+        SortWalls(walls, wallsnum);
+        char surf = 0;//0 - normal, 1 - height, 2 - bottom
+        if (Wall::cam->pos.y >= walls[0].point1.y && Wall::cam->pos.y <= walls[0].point3.y)
+            surf = 0;
+        else if (Wall::cam->pos.y > walls[0].point3.y)
+            surf = 1;
+        else  surf = 2;
+
+        int minx = 10000, maxx = -1;
+        for (int i = 0; i < wallsnum; i++)
+        {
+            walls[i].Draw();
+            if (walls[i].x3 < minx)
+                minx = walls[i].x3;
+            if (walls[i].x4 > maxx)
+                maxx = walls[i].x4;
+        }
+        if (minx > Wall::cam->scr->GetScreenWidth() || maxx < 0) return;
+        if (minx < 0) minx = 0;
+        if (maxx > Wall::cam->scr->GetScreenWidth()) maxx = Wall::cam->scr->GetScreenWidth();
+
+        int deltax = maxx - minx;
+        int* fpx = new int[deltax];
+        int* spx = new int[deltax];
+        int n = 0;
+        int n2 = 0;
+        for (int i = 0; i < wallsnum; i++)
+        {
+            switch (surf)
+            {
+            case 1:
+                if (walls[i].flipped)
+                {
+                    n2 += walls[i].x4 - walls[i].x3;
+                    for (int x = walls[i].x3 - minx; x < walls[i].x4 - minx; x++)
+                    {
+                        fpx[x] = Math::Interpolate(walls[i].x3, walls[i].y3, walls[i].x4, walls[i].y4, x + minx);
+                        if (fpx[x] > Wall::cam->scr->GetScreenHeight())
+                            fpx[x] = Wall::cam->scr->GetScreenHeight();
+                        else if (fpx[x] < 0)
+                            fpx[x] = 0;
+                    }
+                }
+                else
+                {
+                    n += walls[i].x4 - walls[i].x3;
+                    for (int x = walls[i].x3 - minx; x < walls[i].x4 - minx; x++)
+                    {
+                        spx[x] = Math::Interpolate(walls[i].x3, walls[i].y3, walls[i].x4, walls[i].y4, x + minx);
+                        if (spx[x] > Wall::cam->scr->GetScreenHeight())
+                            spx[x] = Wall::cam->scr->GetScreenHeight();
+                        else if (spx[x] < 0)
+                            spx[x] = 0;
+                    }
+                }
+                break;
+            case 2:
+                if (walls[i].flipped)
+                {
+                    n2 += walls[i].x2 - walls[i].x1;
+                    for (int x = walls[i].x1 - minx; x < walls[i].x2 - minx; x++)
+                    {
+                        fpx[x] = Math::Interpolate(walls[i].x1, walls[i].y1, walls[i].x2, walls[i].y2, x + minx);
+                        if (fpx[x] > Wall::cam->scr->GetScreenHeight())
+                            fpx[x] = Wall::cam->scr->GetScreenHeight();
+                        else if (fpx[x] < 0)
+                            fpx[x] = 0;
+                    }
+                }
+                else
+                {
+                    n += walls[i].x2 - walls[i].x1;
+                    for (int x = walls[i].x1 - minx; x < walls[i].x2 - minx; x++)
+                    {
+                        spx[x] = Math::Interpolate(walls[i].x1, walls[i].y1, walls[i].x2, walls[i].y2, x + minx);
+                        if (spx[x] > Wall::cam->scr->GetScreenHeight())
+                            spx[x] = Wall::cam->scr->GetScreenHeight();
+                        else if (spx[x] < 0)
+                            spx[x] = 0;
+                    }
+                }
+                break;
+            }
+        }
+
+        for (int i = 0; i < deltax; i++)
+        {
+            if (n == 0 && n2 != 0)
+            {
+                if(surf == 1)
+                    Wall::cam->scr->DrawLine(i + minx, fpx[i], i + minx, Wall::cam->scr->GetScreenHeight(), surfcol);
+                else if(surf == 2)
+                    Wall::cam->scr->DrawLine(i + minx, fpx[i], i + minx, 0, bottomcol);
+            }
+            else
+                Wall::cam->scr->DrawLine(i + minx, fpx[i], i + minx, spx[i], surf == 1 ? surfcol : bottomcol);
+
+        }
+        delete[] fpx;
+        delete[] spx;
+    }
+    void Clean()
+    {
+        delete[] walls;
+    }
+};
+
+bool sectorssortcomp(const Sector& sec1, const Sector& sec2)
+{
+    return Wall::GetDistanseToCamera(sec1.walls[0]) > Wall::GetDistanseToCamera(sec2.walls[0]);
+}
+
+bool wallsortcomp(const Wall& wall1, const Wall& wall2)
+{
+    return Wall::GetDistanseToCamera(wall1) > Wall::GetDistanseToCamera(wall2);
 }
 
 void SortWalls(Wall* wall, int size)
 {
-    std::sort(wall, wall + size, comp);
-
-    //////////////BOOBLE SORT/////////////////
-    // 
-    //for (int i = 0; i < size - 1; i++)
-    //    for (int j = 0; j < size - i - 1; j++)
-    //        if (wall[j].GetDistanseToCamera() < wall[j + 1].GetDistanseToCamera())
-    //            std::swap(wall[j], wall[j + 1]);
+    std::sort(wall, wall + size, wallsortcomp);
 }
 
 bool InitApp()
@@ -350,55 +513,117 @@ bool InitApp()
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
         return 1;
     
-    Screen::scr->CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, PIXEL_SCALE, SDL_WINDOW_FULLSCREEN);
-    Time::Set_target_framerate(60);
+    Screen::scr->CreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, PIXEL_SCALE);
+    mp = new Minimap(200 / PIXEL_SCALE, 120 / PIXEL_SCALE, 4, p, Screen::scr);
+    mcam = new Camera(Screen::scr);
+    Wall::cam = mcam;
+    Time::Set_target_framerate(120);
     Input::Lock_cursor(Screen::scr->window);
     SDL_ShowCursor(0);
+    return 0;
 }
 
 int main(int argc, char** argv)
 {
-    InitApp();
+    if (InitApp())
+        return 0;
 
-    Minimap* mp = new Minimap(100, 60, 4, p, Screen::scr);
-
-    /*Vector3d point1(0, -0.5, -3), point2(0, -0.5, 3);
-    Wall wall1(point1, point2, 2, Color(255, 255, 0));
-    mp->points.push_back(&point1);
-    mp->points.push_back(&point2);
-    Wall::mp = mp;*/
-    
-    const int size = 20;
-    Vector3d point[size];
-    Wall wall[size];
-    point[0] = Vector3d(0.5, 0, 1);
-    point[1] = Vector3d(1, 0, 0.5);
-    point[2] = Vector3d(2, 0, 0.5);
-    point[3] = Vector3d(2, 0, 2);
-    point[4] = Vector3d(3, 0, 2);
-    point[5] = Vector3d(3.5, 0, 2.5);
-    point[6] = Vector3d(4.5, 0, 2.5);
-    point[7] = Vector3d(5, 0, 2);
-    point[8] = Vector3d(6, 0, 2);
-    point[9] = Vector3d(6, 0, -1);
-    point[10] = Vector3d(5, 0, -2);
-    point[11] = Vector3d(3, 0, -2);
-    point[12] = Vector3d(2, 0, -1);
-    point[13] = Vector3d(2, 0, -0.5);
-    point[14] = Vector3d(1, 0, -0.5);
-    point[15] = Vector3d(0.5, 0, -1);
-    point[16] = Vector3d(-1, 0, -1);
-    point[17] = Vector3d(-1.5, 0, -0.5);
-    point[18] = Vector3d(-1.5, 0, 0.5);
-    point[19] = Vector3d(-1, 0, 1);
+    const int size = 6;
+    Vector2d point[size];
+    point[0] = Vector2d(-1, 0);
+    point[1] = Vector2d(-0.5, -1);
+    point[2] = Vector2d(0.5, -1);
+    point[3] = Vector2d(1, 0);
+    point[4] = Vector2d(0.5, 1);
+    point[5] = Vector2d(-0.5, 1);
+    Sector sec1;
+    sec1.Init(point, size, 0.5, 0, Color(125, 56, 101), Color(125, 56, 101), Color(125, 56, 101));
     for (int i = 0; i < size; i++)
-    {
         mp->points.push_back(&point[i]);
-        if(i + 1 >= size)
-            wall[i].init(point[size - 1], point[0], 1.5, Color(255, 153, 102));
-        else
-            wall[i].init(point[i], point[i + 1], 1.5, Color(255, 153, 102));
-    }
+
+    const int size2 = 6;
+    Vector2d point2[size];
+    point2[0] = Vector2d(-4, 0);
+    point2[1] = Vector2d(-3.5, -1);
+    point2[2] = Vector2d(-2.5, -1);
+    point2[3] = Vector2d(-2, 0);
+    point2[4] = Vector2d(-2.5, 1);
+    point2[5] = Vector2d(-3.5, 1);
+    Sector sec2;
+    sec2.Init(point2, size2, 1, 0, Color(200, 150, 3), Color(200, 150, 3), Color(200, 150, 3));
+    for (int i = 0; i < size2; i++)
+        mp->points.push_back(&point2[i]);
+
+    const int size3 = 6;
+    Vector2d point3[size];
+    point3[0] = Vector2d(-4, 3);
+    point3[1] = Vector2d(-3.5, 2);
+    point3[2] = Vector2d(-2.5, 2);
+    point3[3] = Vector2d(-2, 3);
+    point3[4] = Vector2d(-2.5, 4);
+    point3[5] = Vector2d(-3.5, 4);
+    Sector sec3;
+    sec3.Init(point3, size3, 1.5, 0, Color(148, 146, 23), Color(148, 146, 23), Color(148, 146, 23));
+    for (int i = 0; i < size3; i++)
+        mp->points.push_back(&point3[i]);
+
+    const int size4 = 6;
+    Vector2d point4[size];
+    point4[0] = Vector2d(-1, 3);
+    point4[1] = Vector2d(-0.5, 2);
+    point4[2] = Vector2d(0.5, 2);
+    point4[3] = Vector2d(1, 3);
+    point4[4] = Vector2d(0.5, 4);
+    point4[5] = Vector2d(-0.5, 4);
+    Sector sec4;
+    sec4.Init(point4, size4, 2, 0, Color(15, 162, 169), Color(15, 162, 169), Color(15, 162, 169));
+    for (int i = 0; i < size4; i++)
+        mp->points.push_back(&point4[i]);
+
+    Sector sectors[4];
+    sectors[0] = sec1;
+    sectors[1] = sec2;
+    sectors[2] = sec3;
+    sectors[3] = sec4;
+
+    /*const int size = 20;
+    Vector2d point[size];
+    point[0] = Vector2d(0.5, 1);
+    point[1] = Vector2d(1, 0.5);
+    point[2] = Vector2d(2, 0.5);
+    point[3] = Vector2d(2, 2);
+    point[4] = Vector2d(3, 2);
+    point[5] = Vector2d(3.5, 2.5);
+    point[6] = Vector2d(4.5, 2.5);
+    point[7] = Vector2d(5, 2);
+    point[8] = Vector2d(6, 2);
+    point[9] = Vector2d(6, -1);
+    point[10] = Vector2d(5, -2);
+    point[11] = Vector2d(3, -2);
+    point[12] = Vector2d(2, -1);
+    point[13] = Vector2d(2, -0.5);
+    point[14] = Vector2d(1, -0.5);
+    point[15] = Vector2d(0.5, -1);
+    point[16] = Vector2d(-1, -1);
+    point[17] = Vector2d(-1.5, -0.5);
+    point[18] = Vector2d(-1.5, 0.5);
+    point[19] = Vector2d(-1, 1);
+    Sector sec1;
+    sec1.Init(point, size, 1, 0, Color(255, 153, 102));
+    for (int i = 0; i < size; i++)
+        mp->points.push_back(&point[i]);
+
+
+    const int size2 = 4;
+    Vector2d point2[size2];
+    point2[0] = Vector2d(3.5, 0.5);
+    point2[1] = Vector2d(3.5, -0.5);
+    point2[2] = Vector2d(4.5, -0.5);
+    point2[3] = Vector2d(4.5, 0.5);
+    Sector sec2;
+    sec2.Init(point2, size2, 0.3, 0, Color(51, 204, 102));
+    for (int i = 0; i < size2; i++)
+        mp->points.push_back(&point2[i]);*/
 
     bool quit = false;
     bool lockedcursor = true;
@@ -407,12 +632,10 @@ int main(int argc, char** argv)
         Input::Handle_events();
         quit = Input::Qiut();
         SDL_SetRenderTarget(Screen::scr->ren, Screen::scr->screen_tex);
-        SDL_SetRenderDrawColor(Screen::scr->ren, 0, 0, 0, 255);
+        SDL_SetRenderDrawColor(Screen::scr->ren, 102, 102, 153, 255);
         SDL_RenderClear(Screen::scr->ren);
 
         //////////////////////////////////UPDATE//////////////////////////////////
-
-        SortWalls(wall, size);
 
         if (Input::Get_key_down(SDL_SCANCODE_ESCAPE))
             quit = true;
@@ -429,14 +652,14 @@ int main(int argc, char** argv)
         mcam->pos = p->position;
         mcam->a = p->a;
 
-        for (int i = 0; i < size; i++)
-            wall[i].Draw();
-
+        std::sort(sectors, sectors + 4, sectorssortcomp);
+        for (int i = 0; i < 4; i++)
+            sectors[i].Draw();
+        //sec1.Draw();
         mp->Draw();
-        //wall1.Draw();
 
         mcam->fov += Input::Get_scroll_whell() * Time::Delta_time() * 500;
-        std::cout << 1.0f / Time::Delta_time() << '\n';
+        //std::cout << 1.0f / Time::Delta_time() << '\n';
 
         //////////////////////////////////UPDATE//////////////////////////////////
 
@@ -444,7 +667,7 @@ int main(int argc, char** argv)
         SDL_RenderCopy(Screen::scr->ren, Screen::scr->screen_tex, NULL, NULL);
         SDL_RenderPresent(Screen::scr->ren);
         Time::Tick();
-        
+
     }
     Screen::scr->ApplicationQuit();
     delete(Screen::scr);
